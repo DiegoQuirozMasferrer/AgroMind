@@ -430,14 +430,14 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.circular(15),
         onTap: () => _navigateToDetallesCuartel(index),
         child: Container(
-          padding: const EdgeInsets.all(12.0), // Reducido el padding
+          padding: const EdgeInsets.all(12.0),
           constraints: BoxConstraints(
-            minHeight: 150, // Altura mínima garantizada
+            minHeight: 150,
           ),
           child: Stack(
             children: [
               Column(
-                mainAxisSize: MainAxisSize.min, // Ajusta al contenido
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(Icons.spa, size: 32, color: colors.secondary),

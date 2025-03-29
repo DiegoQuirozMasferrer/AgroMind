@@ -65,7 +65,7 @@ class ApiService {
     final List<double> windGusts = List<double>.from(dailyData['wind_gusts_10m_max']);
 
     // Extrae la evapotranspiración de referencia (ETo) y la radiación solar
-    final List<double> et0 = List<double>.from(dailyData['et0_fao_evapotranspiration']);
+    final List<double>et0 = List<double>.from(dailyData['et0_fao_evapotranspiration']);
     final List<double> shortwaveRadiation = List<double>.from(dailyData['shortwave_radiation_sum']);
 
     // Devuelve un mapa con los datos procesados

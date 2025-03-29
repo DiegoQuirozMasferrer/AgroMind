@@ -131,7 +131,8 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
     if (widget.weatherData == null) return;
 
     setState(() {
-      _etoHargreaves = _calcularEToHargreaves(widget.weatherData!);
+      _etoHargreaves = widget.weatherData?['et0_fao_evapotranspiration'];
+      //_etoHargreaves = _calcularEToHargreaves(widget.weatherData!);
       final kc = double.tryParse(_controllerKc.text) ?? 0.0;
       _etc = (_etoHargreaves ?? 0.0) * kc;
       _calcularTiempoRiego();
@@ -161,6 +162,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
     final tMin = weatherData['temperature_min'] ?? 0.0;
     final ra = _calcularRadiacionExtraterrestre(weatherData);
     return 0.0023 * (tAvg + 17.8) * pow((tMax - tMin), 0.5) * ra;
+   // return 0.0023 * (tAvg + 17.8) * pow((tMax - tMin), 0.5) * ra;
   }
 
   double _calcularRadiacionExtraterrestre(Map<String, dynamic> weatherData) {
@@ -268,7 +270,8 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
             _buildEnhancedValueChip(
               icon: Icons.wb_sunny_outlined,
               label: 'EVAPOTRANSPIRACIÓN (ETo)',
-              value: '${_etoHargreaves?.toStringAsFixed(1) ?? 'N/A'}',
+
+              value: '${_etoHargreaves?.toStringAsFixed(2) ?? 'N/A'}',
               unit: 'mm/día',
               color: Colors.blue.shade100,
               iconColor: Colors.blue.shade800,
