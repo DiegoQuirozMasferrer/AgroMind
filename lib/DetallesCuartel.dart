@@ -141,17 +141,20 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
   }
 
   void _calcularTiempoRiego() {
-    final area1 = double.tryParse(_controllerSobre.text) ?? 1.0;
-    final area2 = double.tryParse(_controllerEntre.text) ?? 1.0;
-    final caudal = double.tryParse(_controllerCaudal.text) ?? 0.0;
+    final area1 = double.tryParse(_controllerSobre.text) ?? 1.0; // en metros
+    final area2 = double.tryParse(_controllerEntre.text) ?? 1.0; // en metros
+    final caudal = double.tryParse(_controllerCaudal.text) ?? 0.0; // en L/h por emisor
     final emisores = int.tryParse(_controllerEmisores.text) ?? 0;
-    final eficiencia = _eficienciaRiego[_tipoRiego] ?? 0.9;
+    final eficiencia = _eficienciaRiego[_tipoRiego] ?? 0.9; // 90% por defecto
 
     if (caudal > 0 && emisores > 0 && _etc != null) {
-      final volumenAgua = _etc! * (area1*area2);
-      final caudalTotal = caudal * emisores;
-      _tiempoRiego = volumenAgua / (caudalTotal * eficiencia);
+      final volumenAgua = _etc! * (area1 * area2); // ETc en mm/día → volumen en L
+      final caudalTotal = caudal * emisores; // en L/h
+      final tiempoHorasDecimal = volumenAgua / (caudalTotal * eficiencia);
+
+      _tiempoRiego = tiempoHorasDecimal;
     } else {
+
       _tiempoRiego = null;
     }
   }
@@ -420,7 +423,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
             ),
             _buildInputField(
               controller: _controllerEntre,
-              label: 'distancia entre hilera  (m²)',
+              label: 'distancia sobre hilera  (m²)',
               icon: Icons.square_foot,
             ),
             _buildInputField(
@@ -610,7 +613,10 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
                         style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey.shade700)),
-                    Text('${_tiempoRiego!.toStringAsFixed(1)} horas',
+                    Text(
+                        _tiempoRiego != null
+                            ? '${_tiempoRiego!.floor()}h ${((_tiempoRiego! - _tiempoRiego!.floor()) * 60).round()}m'
+                            : 'No calculado',
                         style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
