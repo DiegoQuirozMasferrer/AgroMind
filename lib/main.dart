@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:untitled7/DetallesCuartel.dart';
@@ -398,7 +398,7 @@ class _HomePageState extends State<HomePage> {
           padding: const EdgeInsets.symmetric(horizontal: 8.0),
           child: Text('Cuarteles del Cultivo',
               style: theme.textTheme.titleLarge?.copyWith(
-                color: colors.onBackground,
+                color: colors.onSurface,
                 fontWeight: FontWeight.bold,
               )),
         ),

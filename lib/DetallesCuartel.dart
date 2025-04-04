@@ -1,6 +1,10 @@
 import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'HistoryScreen.dart';
+
+import 'api_service.dart'; // Asegúrate de tener esta importación
 
 enum TipoRiego {
   goteo(tecnificado: true, nombre: 'Riego por Goteo'),
@@ -45,6 +49,13 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
   double? _etoHargreaves;
   TipoRiego _tipoRiego = TipoRiego.goteo;
 
+  // Variables para el ajuste automático
+  double _factorAjusteHargreaves = 0.3;
+  bool _ajusteCalculado = false;
+  bool _cargandoAjuste = false;
+  String _mensajeAjuste = 'Calculando ajuste...';
+  final ApiService _apiService = ApiService();
+
   final Map<TipoRiego, double> _eficienciaRiego = {
     TipoRiego.goteo: 0.90,
     TipoRiego.microaspersion: 0.85,
@@ -62,6 +73,104 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
     _initializeControllers();
     _initializeTipoRiego();
     _calculateInitialValues();
+    _calcularYActualizarAjuste();
+  }
+
+  Future<void> _calcularYActualizarAjuste() async {
+    if (widget.weatherData == null ||
+        widget.weatherData?['latitude'] == null ||
+        widget.weatherData?['longitude'] == null) {
+      setState(() {
+        _ajusteCalculado = true;
+        _mensajeAjuste = 'Ubicación no disponible para ajuste';
+      });
+      return;
+    }
+
+    setState(() {
+      _cargandoAjuste = true;
+    });
+
+    try {
+      final historico = await _apiService.obtenerHistoricoMeteorologico(
+        widget.weatherData!['latitude'],
+        widget.weatherData!['longitude'],
+      );
+
+      final datosDiarios = historico['daily'];
+      final dias = datosDiarios['time'].length;
+      double sumaFactores = 0;
+      int conteoValidos = 0;
+
+      for (int i = 0; i < dias; i++) {
+        final tMax = datosDiarios['temperature_2m_max'][i];
+        final tMin = datosDiarios['temperature_2m_min'][i];
+        final etoApi = datosDiarios['et0_fao_evapotranspiration'][i];
+
+        final etoHargreaves = _calcularEToHargreavesBruto(
+          tMax,
+          tMin,
+          widget.weatherData!['latitude'],
+          _diaDelAnio(DateTime.parse(datosDiarios['time'][i])),
+        );
+
+        if (etoHargreaves > 0) {
+          sumaFactores += etoApi / etoHargreaves;
+          conteoValidos++;
+        }
+      }
+
+      setState(() {
+        _factorAjusteHargreaves = conteoValidos > 0 ?
+        (sumaFactores / conteoValidos).clamp(0.2, 0.5) : 0.3;
+        _ajusteCalculado = true;
+        _cargandoAjuste = false;
+        _mensajeAjuste = conteoValidos > 0 ?
+        'Ajustado con $conteoValidos días históricos' :
+        'Usando valor por defecto';
+      });
+
+      _recalcularETo();
+    } catch (e) {
+      print('Error calculando ajuste: $e');
+      setState(() {
+        _factorAjusteHargreaves = 0.3;
+        _ajusteCalculado = true;
+        _cargandoAjuste = false;
+        _mensajeAjuste = 'Error calculando ajuste';
+      });
+      _recalcularETo();
+    }
+  }
+
+  int _diaDelAnio(DateTime fecha) {
+    return fecha.difference(DateTime(fecha.year, 1, 1)).inDays + 1;
+  }
+
+  double _calcularEToHargreavesBruto(double tMax, double tMin, double latitud, int diaAnio) {
+    final tAvg = (tMax + tMin) / 2;
+    final ra = _calcularRadiacionExtraterrestre(latitud, diaAnio);
+    return 0.0023 * (tAvg + 17.8) * sqrt(tMax - tMin) * ra;
+  }
+
+  double _calcularRadiacionExtraterrestre(double latitud, int diaAnio) {
+    final phi = latitud * (pi / 180);
+    final delta = 0.409 * sin((2 * pi / 365) * diaAnio - 1.39);
+    final dr = 1 + 0.033 * cos((2 * pi / 365) * diaAnio);
+    final omegaS = acos(-tan(phi) * tan(delta));
+    const gsc = 0.0820;
+    return (24 * 60 / pi) * gsc * dr *
+        (omegaS * sin(phi) * sin(delta) + cos(phi) * cos(delta) * sin(omegaS));
+  }
+
+  double _calcularEToHargreavesAjustado(Map<String, dynamic> weatherData) {
+    final tMax = weatherData['temperature_max'] ?? 0.0;
+    final tMin = weatherData['temperature_min'] ?? 0.0;
+    final latitud = weatherData['latitude'] ?? -35.4264;
+    final diaAnio = _diaDelAnio(DateTime.now());
+
+    final etoBruto = _calcularEToHargreavesBruto(tMax, tMin, latitud, diaAnio);
+    return etoBruto * _factorAjusteHargreaves;
   }
 
   void _initializeControllers() {
@@ -71,7 +180,6 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
     _controllerSobre.text = widget.datos['Sobre']?.toString() ?? '';
     _controllerEntre.text = widget.datos['Entre']?.toString() ?? '';
 
-    // Add listeners for automatic saving
     _controllerKc.addListener(_guardarAutomaticamente);
     _controllerCaudal.addListener(_guardarAutomaticamente);
     _controllerEmisores.addListener(_guardarAutomaticamente);
@@ -90,14 +198,12 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
 
   void _calculateInitialValues() {
     if (widget.weatherData != null) {
-      _etoHargreaves = _calcularEToHargreaves(widget.weatherData!);
       _recalcularETo();
     }
   }
 
   @override
   void dispose() {
-    // Remove listeners when widget is disposed
     _controllerKc.removeListener(_guardarAutomaticamente);
     _controllerCaudal.removeListener(_guardarAutomaticamente);
     _controllerEmisores.removeListener(_guardarAutomaticamente);
@@ -131,58 +237,43 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
     if (widget.weatherData == null) return;
 
     setState(() {
-      _etoHargreaves = widget.weatherData?['et0_fao_evapotranspiration'];
-      //_etoHargreaves = _calcularEToHargreaves(widget.weatherData!);
+      if (widget.weatherData!['et0_fao_evapotranspiration'] != null) {
+        _etoHargreaves = widget.weatherData!['et0_fao_evapotranspiration'];
+      } else if (_ajusteCalculado) {
+        _etoHargreaves = _calcularEToHargreavesAjustado(widget.weatherData!);
+      } else {
+        _etoHargreaves = _calcularEToHargreavesBruto(
+          widget.weatherData!['temperature_max'] ?? 0.0,
+          widget.weatherData!['temperature_min'] ?? 0.0,
+          widget.weatherData?['latitude'] ?? -35.4264,
+          _diaDelAnio(DateTime.now()),
+        );
+      }
+
       final kc = double.tryParse(_controllerKc.text) ?? 0.0;
       _etc = (_etoHargreaves ?? 0.0) * kc;
       _calcularTiempoRiego();
       _guardarAutomaticamente();
+      print("hard");
+      print(_calcularEToHargreavesAjustado(widget.weatherData!));
     });
   }
 
   void _calcularTiempoRiego() {
-    final area1 = double.tryParse(_controllerSobre.text) ?? 1.0; // en metros
-    final area2 = double.tryParse(_controllerEntre.text) ?? 1.0; // en metros
-    final caudal = double.tryParse(_controllerCaudal.text) ?? 0.0; // en L/h por emisor
+    final area1 = double.tryParse(_controllerSobre.text) ?? 1.0;
+    final area2 = double.tryParse(_controllerEntre.text) ?? 1.0;
+    final caudal = double.tryParse(_controllerCaudal.text) ?? 0.0;
     final emisores = int.tryParse(_controllerEmisores.text) ?? 0;
-    final eficiencia = _eficienciaRiego[_tipoRiego] ?? 0.9; // 90% por defecto
+    final eficiencia = _eficienciaRiego[_tipoRiego] ?? 0.9;
 
     if (caudal > 0 && emisores > 0 && _etc != null) {
-      final volumenAgua = _etc! * (area1 * area2); // ETc en mm/día → volumen en L
-      final caudalTotal = caudal * emisores; // en L/h
+      final volumenAgua = _etc! * (area1 * area2);
+      final caudalTotal = caudal * emisores;
       final tiempoHorasDecimal = volumenAgua / (caudalTotal * eficiencia);
-
       _tiempoRiego = tiempoHorasDecimal;
     } else {
-
       _tiempoRiego = null;
     }
-  }
-
-  double _calcularEToHargreaves(Map<String, dynamic> weatherData) {
-    final tAvg = weatherData['temperature_avg'] ?? 0.0;
-    final tMax = weatherData['temperature_max'] ?? 0.0;
-    final tMin = weatherData['temperature_min'] ?? 0.0;
-    final ra = _calcularRadiacionExtraterrestre(weatherData);
-    return 0.0023 * (tAvg + 17.8) * pow((tMax - tMin), 0.5) * ra;
-   // return 0.0023 * (tAvg + 17.8) * pow((tMax - tMin), 0.5) * ra;
-  }
-
-  double _calcularRadiacionExtraterrestre(Map<String, dynamic> weatherData) {
-    const latitud = -35.4264;
-    final diaDelAnio = _calcularDiaDelAnio();
-    final phi = latitud * (pi / 180);
-    final delta = 0.409 * sin((2 * pi / 365) * diaDelAnio - 1.39);
-    final dr = 1 + 0.033 * cos((2 * pi / 365) * diaDelAnio);
-    final omegaS = acos(-tan(phi) * tan(delta));
-    const gsc = 0.0820;
-    return (24 * 60 / pi) * gsc * dr *
-        (omegaS * sin(phi) * sin(delta) + cos(phi) * cos(delta) * sin(omegaS));
-  }
-
-  int _calcularDiaDelAnio() {
-    final now = DateTime.now();
-    return now.difference(DateTime(now.year, 1, 1)).inDays + 1;
   }
 
   @override
@@ -192,8 +283,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Detalles del Cuartel',
-            style: TextStyle(color: colors.onPrimary)),
+        title: Text('Detalles del Cuartel', style: TextStyle(color: colors.onPrimary)),
         centerTitle: true,
         flexibleSpace: Container(
           decoration: BoxDecoration(
@@ -272,13 +362,17 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
             const SizedBox(height: 16),
             _buildEnhancedValueChip(
               icon: Icons.wb_sunny_outlined,
-              label: 'EVAPOTRANSPIRACIÓN (ETo)',
-
+              label: 'EVAPOTRANSPIRACIÓN (ET₀)',
               value: '${_etoHargreaves?.toStringAsFixed(2) ?? 'N/A'}',
               unit: 'mm/día',
               color: Colors.blue.shade100,
               iconColor: Colors.blue.shade800,
+              subText: widget.weatherData?['et0_fao_evapotranspiration'] != null
+                  ? 'Datos oficiales de la API'
+                  : 'Estimado con Hargreaves ajustado',
             ),
+            if (widget.weatherData?['et0_fao_evapotranspiration'] == null)
+              _buildAjusteInfo(),
             const SizedBox(height: 12),
             _buildEnhancedValueChip(
               icon: Icons.grass_outlined,
@@ -294,6 +388,51 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
     );
   }
 
+  Widget _buildAjusteInfo() {
+    return Container(
+      margin: EdgeInsets.only(top: 8),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blueGrey[50],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.blueGrey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune, size: 20, color: Colors.blueGrey),
+              SizedBox(width: 8),
+              Text(
+                'Ajuste Hargreaves',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blueGrey[800],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          if (_cargandoAjuste)
+            LinearProgressIndicator()
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Factor: ${_factorAjusteHargreaves.toStringAsFixed(3)}'),
+                SizedBox(height: 4),
+                Text(
+                  _mensajeAjuste,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEnhancedValueChip({
     required IconData icon,
     required String label,
@@ -301,6 +440,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
     required String unit,
     required Color color,
     required Color iconColor,
+    String? subText,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -319,54 +459,70 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
           width: 1,
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 24, color: iconColor),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black54,
-                  ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  shape: BoxShape.circle,
                 ),
-                RichText(
-                  text: TextSpan(
-                    children: [
-                      TextSpan(
-                        text: value,
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
+                child: Icon(icon, size: 24, color: iconColor),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54,
                       ),
-                      TextSpan(
-                        text: ' $unit',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.normal,
-                          color: Colors.black54,
-                        ),
+                    ),
+                    RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: value,
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          TextSpan(
+                            text: ' $unit',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.normal,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+          if (subText != null) ...[
+            SizedBox(height: 8),
+            Text(
+              subText,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -413,7 +569,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
             ),
             _buildInputField(
               controller: _controllerCaudal,
-              label: 'Caudal (L/Hr)',
+              label: 'Caudal del emisor (L/Hr)',
               icon: Icons.water_drop,
             ),
             _buildInputField(
@@ -423,12 +579,12 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
             ),
             _buildInputField(
               controller: _controllerEntre,
-              label: 'distancia sobre hilera  (m²)',
+              label: 'Distancia sobre hilera (m)',
               icon: Icons.square_foot,
             ),
             _buildInputField(
               controller: _controllerSobre,
-              label: 'distancia sobre hilera  (m²)',
+              label: 'Distancia entre hileras (m)',
               icon: Icons.square_foot,
             ),
             _buildTipoRiegoDropdown(colors),
@@ -459,7 +615,8 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
           return DropdownMenuItem<TipoRiego>(
             value: tipo,
             child: Container(
-              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width - 100),
+              constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width - 100),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
