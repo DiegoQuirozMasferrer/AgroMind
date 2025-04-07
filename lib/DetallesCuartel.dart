@@ -50,7 +50,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
   TipoRiego _tipoRiego = TipoRiego.goteo;
 
   // Variables para el ajuste automático
-  double _factorAjusteHargreaves = 0.3;
+  double _factorAjusteHargreaves = 0.4;
   bool _ajusteCalculado = false;
   bool _cargandoAjuste = false;
   String _mensajeAjuste = 'Calculando ajuste...';
@@ -122,7 +122,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
 
       setState(() {
         _factorAjusteHargreaves = conteoValidos > 0 ?
-        (sumaFactores / conteoValidos).clamp(0.2, 0.5) : 0.3;
+        (sumaFactores / conteoValidos).clamp(0.2, 0.5) : 0.41;
         _ajusteCalculado = true;
         _cargandoAjuste = false;
         _mensajeAjuste = conteoValidos > 0 ?
@@ -238,7 +238,8 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
 
     setState(() {
       if (widget.weatherData!['et0_fao_evapotranspiration'] != null) {
-        _etoHargreaves = widget.weatherData!['et0_fao_evapotranspiration'];
+        _etoHargreaves = _calcularEToHargreavesAjustado(widget.weatherData!);
+        //_etoHargreaves = widget.weatherData!['et0_fao_evapotranspiration'];
       } else if (_ajusteCalculado) {
         _etoHargreaves = _calcularEToHargreavesAjustado(widget.weatherData!);
       } else {
