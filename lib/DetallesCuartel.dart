@@ -150,7 +150,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
   double _calcularEToHargreavesBruto(double tMax, double tMin, double latitud, int diaAnio) {
     final tAvg = (tMax + tMin) / 2;
     final ra = _calcularRadiacionExtraterrestre(latitud, diaAnio);
-    return 0.0023 * (tAvg + 17.8) * sqrt(tMax - tMin) * ra;
+    return 0.0023 * (tAvg + 17.8) * sqrt(tMax - tMin) * ra*0.408;
   }
 
   double _calcularRadiacionExtraterrestre(double latitud, int diaAnio) {
@@ -170,7 +170,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
     final diaAnio = _diaDelAnio(DateTime.now());
 
     final etoBruto = _calcularEToHargreavesBruto(tMax, tMin, latitud, diaAnio);
-    return etoBruto * _factorAjusteHargreaves;
+    return etoBruto ;
   }
 
   void _initializeControllers() {
@@ -369,8 +369,8 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
               color: Colors.blue.shade100,
               iconColor: Colors.blue.shade800,
               subText: widget.weatherData?['et0_fao_evapotranspiration'] != null
-                  ? 'Datos oficiales de la API'
-                  : 'Estimado con Hargreaves ajustado',
+                  ? 'Estimado con Hargreaves ajustado'
+                  : 'Datos oficiales de la API',
             ),
             if (widget.weatherData?['et0_fao_evapotranspiration'] == null)
               _buildAjusteInfo(),
