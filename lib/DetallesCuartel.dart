@@ -50,7 +50,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
   TipoRiego _tipoRiego = TipoRiego.goteo;
 
   // Variables para el ajuste automático
-  double _factorAjusteHargreaves = 0.4;
+  double _factorAjusteHargreaves = 0.5;
   bool _ajusteCalculado = false;
   bool _cargandoAjuste = false;
   String _mensajeAjuste = 'Calculando ajuste...';
@@ -148,20 +148,56 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
   }
 
   double _calcularEToHargreavesBruto(double tMax, double tMin, double latitud, int diaAnio) {
+    print('dia del año: $diaAnio');
     final tAvg = (tMax + tMin) / 2;
-    final ra = _calcularRadiacionExtraterrestre(latitud, diaAnio);
-    return 0.0023 * (tAvg + 17.8) * sqrt(tMax - tMin) * ra*0.408;
+    final rs = calcularRadiacionSolar(latitud, diaAnio,tMax,tMin);
+    print('rs: $rs');
+    print('temperaturaMax: $tMax');
+    print('temperaturaMin: $tMin');
+    print('temperaturaMedia: $tAvg');
+    print('latitud: $latitud');
+    return (0.0135*(tAvg+17.78) * rs);
   }
 
-  double _calcularRadiacionExtraterrestre(double latitud, int diaAnio) {
-    final phi = latitud * (pi / 180);
-    final delta = 0.409 * sin((2 * pi / 365) * diaAnio - 1.39);
-    final dr = 1 + 0.033 * cos((2 * pi / 365) * diaAnio);
-    final omegaS = acos(-tan(phi) * tan(delta));
-    const gsc = 0.0820;
-    return (24 * 60 / pi) * gsc * dr *
-        (omegaS * sin(phi) * sin(delta) + cos(phi) * cos(delta) * sin(omegaS));
+  double calcularRadiacionSolar(
+      double latitud,
+      int diaAnio,
+      double tMax,
+      double tMin, {
+        double kt = 0.172, // 0.16 interior, 0.19 costero
+      }) {
+
+    assert(tMax >= tMin, "tMax debe ser mayor o igual a tMin");
+    assert(diaAnio >= 1 && diaAnio <= 365, "Día del año debe estar entre 1 y 365");
+
+    //  Calcular Ra
+    const double gsc = 0.0820; // MJ/m²/min
+    final double phi = latitud * (pi / 180); // Convertir latitud a radianes
+
+    // Declinación solar (δ)
+    final double delta = 0.409 * sin((2 * pi / 365) * diaAnio - 1.39);
+
+    // Factor de corrección Tierra-Sol (dr)
+    final double dr = 1 + 0.033 * cos((2 * pi / 365) * diaAnio);
+
+    // Ángulo horario de salida del sol (ωs)
+    double argumento = -tan(phi) * tan(delta);
+    argumento = argumento.clamp(-1.0, 1.0);
+    final double omegaS = acos(argumento);
+
+    // Cálculo de Ra
+    final double termino1 = omegaS * sin(phi) * sin(delta);
+    final double termino2 = cos(phi) * cos(delta) * sin(omegaS);
+    final double Ra = (24 * 60 / pi) * gsc * dr * (termino1 + termino2);
+
+    // Calcular Rs
+    final double deltaT = tMax - tMin;
+    final double Rs = kt * sqrt(deltaT) * (Ra*0.408);
+
+
+    return Rs >= 0 ? Rs : 0; // Evita valores negativos
   }
+
 
   double _calcularEToHargreavesAjustado(Map<String, dynamic> weatherData) {
     final tMax = weatherData['temperature_max'] ?? 0.0;
@@ -170,7 +206,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
     final diaAnio = _diaDelAnio(DateTime.now());
 
     final etoBruto = _calcularEToHargreavesBruto(tMax, tMin, latitud, diaAnio);
-    return etoBruto ;
+    return etoBruto;
   }
 
   void _initializeControllers() {
@@ -224,8 +260,8 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
         'kc': _controllerKc.text,
         'caudal': _controllerCaudal.text,
         'emisores': _controllerEmisores.text,
-        'Area1': _controllerSobre.text,
-        'Area2': _controllerEntre.text,
+        'Sobre': _controllerSobre.text,
+        'Entre': _controllerEntre.text,
         'riego': _tiempoRiego,
         'tipoRiego': _tipoRiego.toString(),
       };
@@ -253,6 +289,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
 
       final kc = double.tryParse(_controllerKc.text) ?? 0.0;
       _etc = (_etoHargreaves ?? 0.0) * kc;
+
       _calcularTiempoRiego();
       _guardarAutomaticamente();
       print("hard");

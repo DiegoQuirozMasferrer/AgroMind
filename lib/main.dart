@@ -466,8 +466,10 @@ class _HomePageState extends State<HomePage> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildCompactDataRow('Tiempo', datos['riego']?.toStringAsFixed(1)),
+                            _buildCompactDataRow('Tiempo',
+                              _convertirDecimalAHorasMinutos(datos['riego'] ?? 0.0),),
                             if (datos['tipoRiego'] != null) ...[
+
                               _buildCompactDataRow(
                                 'Tipo',
                                 _parseTipoRiego(datos['tipoRiego'].toString()),
@@ -528,7 +530,14 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+  String _convertirDecimalAHorasMinutos(double horasDecimal) {
+    if (horasDecimal == null || horasDecimal <= 0) return '0h 00m';
 
+    final horas = horasDecimal.floor();
+    final minutos = ((horasDecimal - horas) * 60).round();
+
+    return '${horas}h ${minutos.toString().padLeft(2, '0')}m';
+  }
   String _parseTipoRiego(String tipoRiego) {
     switch (tipoRiego.split('.').last) {
       case 'goteo':
