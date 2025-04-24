@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:untitled7/DetallesCuartel.dart';
 import 'api_service.dart';
+import 'TesteoCalc.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -163,6 +164,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
@@ -183,6 +185,18 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.science_outlined),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => TesteoCalc()),
+              );
+            },
+            tooltip: 'Pantalla de pruebas técnicas',
+          ),
+        ],
       ),
       body: isLoading
           ? Center(child: CircularProgressIndicator(color: colors.primary))
@@ -196,11 +210,30 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _agregarCuartel,
-        backgroundColor: colors.primary,
-        foregroundColor: colors.onPrimary,
-        child: Icon(Icons.add_rounded, size: 32),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: "btn_test",
+            mini: true,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => TesteoCalc()),
+              );
+            },
+            backgroundColor: Colors.deepPurple,
+            child: Icon(Icons.science, size: 24),
+          ),
+          SizedBox(height: 12),
+          FloatingActionButton(
+            heroTag: "btn_add",
+            onPressed: _agregarCuartel,
+            backgroundColor: colors.primary,
+            foregroundColor: colors.onPrimary,
+            child: Icon(Icons.add_rounded, size: 32),
+          ),
+        ],
       ),
     );
   }

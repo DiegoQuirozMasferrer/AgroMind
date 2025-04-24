@@ -192,7 +192,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
 
     // Calcular Rs
     final double deltaT = tMax - tMin;
-    final double Rs = kt * sqrt(deltaT) * (Ra*0.408);
+    final double Rs = kt * sqrt(deltaT) * (Ra);
 
 
     return Rs >= 0 ? Rs : 0; // Evita valores negativos
