@@ -156,7 +156,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
     print('temperaturaMin: $tMin');
     print('temperaturaMedia: $tAvg');
     print('latitud: $latitud');
-    return (0.0075*(tAvg+17.78) * rs);
+    return (0.0135*(tAvg+17.78) * rs);
   }
 
   double calcularRadiacionSolar(
@@ -164,7 +164,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
       int diaAnio,
       double tMax,
       double tMin, {
-        double kt = 0.19, // 0.16 interior, 0.19 costero
+        double kt = 0.162, // 0.16 interior, 0.19 costero
       }) {
 
     assert(tMax >= tMin, "tMax debe ser mayor o igual a tMin");
@@ -192,7 +192,7 @@ class _DetallesCuartelState extends State<DetallesCuartel> {
 
     // Calcular Rs
     final double deltaT = tMax - tMin;
-    final double Rs = kt * sqrt(deltaT) * (Ra);
+    final double Rs =( kt * sqrt(deltaT) * (Ra))*0.408;
 
 
     return Rs >= 0 ? Rs : 0; // Evita valores negativos
